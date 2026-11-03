@@ -1693,9 +1693,17 @@ function Show() {
   const [city] = useState(getStoredCity());
   const [movie, setMovie] = useState(null);
   const [showsData, setShowsData] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('TODAY');
 
-  const dates = ['TODAY', 'TOMORROW', 'FRI 06', 'SAT 07', 'SUN 08'];
+  const dateTabs = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dayLabel = i === 0 ? 'TODAY' : i === 1 ? 'TOMORROW' : d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    const dateSub = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }).toUpperCase();
+    const isoDate = d.toISOString().split('T')[0];
+    return { key: isoDate, dayLabel, dateSub };
+  });
+
+  const [selectedDateKey, setSelectedDateKey] = useState(dateTabs[0]?.key);
 
   useEffect(() => {
     if (!id) return;
@@ -1720,47 +1728,52 @@ function Show() {
         </div>
 
         <div className="dates">
-          {dates.map((d, i) => (
+          {dateTabs.map((dt) => (
             <button
-              key={d}
-              className={selectedDate === d ? 'active' : ''}
-              onClick={() => setSelectedDate(d)}
+              key={dt.key}
+              className={selectedDateKey === dt.key ? 'active' : ''}
+              onClick={() => setSelectedDateKey(dt.key)}
             >
-              {d}
-              <b>{i + 3} NOV</b>
+              {dt.dayLabel}
+              <b>{dt.dateSub}</b>
             </button>
           ))}
         </div>
 
         {theaters.length > 0 ? (
-          theaters.map((th) => (
-            <div key={th.id} style={{ marginBottom: 25, background: '#111116', padding: 20, borderRadius: 14, border: '1px solid var(--line)' }}>
-              <div className="theater" style={{ margin: 0, padding: '0 0 16px' }}>
-                <div>
-                  <h3>{th.name}</h3>
-                  <p>{th.city} • {th.address}</p>
-                </div>
-                <span className="tag">₹{th.startingPrice} onwards</span>
-              </div>
+          theaters.map((th) => {
+            const dateFilteredTimes = th.times?.filter(t => !t.date || t.date === selectedDateKey);
+            const displayedTimes = (dateFilteredTimes && dateFilteredTimes.length > 0) ? dateFilteredTimes : th.times;
 
-              <div className="times" style={{ marginTop: 12 }}>
-                {th.times?.map((t) => (
-                  <button
-                    key={t.showId}
-                    type="button"
-                    onClick={() => {
-                      requireAuth(`Sign in required to select seats for ${movie?.title || 'this show'}`, () => {
-                        nav(`/seats/${id}?showId=${t.showId}&time=${encodeURIComponent(t.time)}&theater=${encodeURIComponent(th.name)}`);
-                      });
-                    }}
-                  >
-                    {t.time}
-                    <small>{t.format} • ₹{t.price}</small>
-                  </button>
-                ))}
+            return (
+              <div key={th.id} style={{ marginBottom: 25, background: '#111116', padding: 20, borderRadius: 14, border: '1px solid var(--line)' }}>
+                <div className="theater" style={{ margin: 0, padding: '0 0 16px' }}>
+                  <div>
+                    <h3>{th.name}</h3>
+                    <p>{th.city} • {th.address}</p>
+                  </div>
+                  <span className="tag">₹{th.startingPrice} onwards</span>
+                </div>
+
+                <div className="times" style={{ marginTop: 12 }}>
+                  {displayedTimes?.map((t) => (
+                    <button
+                      key={t.showId}
+                      type="button"
+                      onClick={() => {
+                        requireAuth(`Sign in required to select seats for ${movie?.title || 'this show'}`, () => {
+                          nav(`/seats/${id}?showId=${t.showId}&time=${encodeURIComponent(t.time)}&theater=${encodeURIComponent(th.name)}&date=${encodeURIComponent(t.date || selectedDateKey)}`);
+                        });
+                      }}
+                    >
+                      {t.time}
+                      <small>{t.format} • ₹{t.price}</small>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="searchStateBox">
             <Film size={44} color="#777" style={{ margin: '0 auto 12px' }} />
@@ -1878,7 +1891,8 @@ function Seats() {
                     movieId: id,
                     movieTitle: movie?.title || 'Movie',
                     theater: theaterName,
-                    time: showTime
+                    time: showTime,
+                    showId: showId !== 'demo' ? showId : undefined
                   }
                 });
               });
@@ -1917,6 +1931,7 @@ function Checkout() {
         movieTitle,
         theaterName: state.theater || 'INOX • Elante Mall',
         showTime: state.time || 'Today • 10:00 PM',
+        showId: state.showId,
         seats: state.selected || [],
         amount: grandTotal
       }).catch((err) => console.warn('Backend booking save notice:', err));

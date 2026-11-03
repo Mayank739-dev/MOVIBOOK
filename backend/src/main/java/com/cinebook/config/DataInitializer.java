@@ -160,34 +160,11 @@ public class DataInitializer implements CommandLineRunner {
                 "https://www.youtube.com/watch?v=cqGjhVJWtEg", "COMING_SOON"
             );
 
-            // 4. Seed Shows by City if not already created
-            if (showRepo.count() == 0) {
-                // CHANDIGARH shows: Midnight Protocol, Neon Dreams, Inception
-                createShow(midnight, s1InoxChd, today, LocalTime.of(22, 30), "2D Dolby Atmos", BigDecimal.valueOf(250));
-                createShow(midnight, s1InoxChd, today.plusDays(1), LocalTime.of(10, 0), "2D Dolby Atmos", BigDecimal.valueOf(250));
-                createShow(midnight, s1InoxChd, today.plusDays(1), LocalTime.of(16, 30), "2D Dolby Atmos", BigDecimal.valueOf(250));
-                createShow(midnight, s1InoxChd, today.plusDays(1), LocalTime.of(20, 0), "2D Dolby Atmos", BigDecimal.valueOf(300));
-
-                createShow(neon, s1InoxChd, today, LocalTime.of(23, 0), "2D", BigDecimal.valueOf(220));
-                createShow(neon, s1InoxChd, today.plusDays(1), LocalTime.of(13, 15), "2D", BigDecimal.valueOf(220));
-                createShow(neon, s1InoxChd, today.plusDays(1), LocalTime.of(18, 0), "2D", BigDecimal.valueOf(250));
-
-                createShow(inception, s2InoxChd, today.plusDays(1), LocalTime.of(14, 0), "IMAX", BigDecimal.valueOf(450));
-                createShow(inception, s2InoxChd, today.plusDays(1), LocalTime.of(19, 30), "IMAX", BigDecimal.valueOf(500));
-
-                // DELHI shows: Midnight Protocol, Dune: Part Two (Neon Dreams has NO shows in Delhi)
-                createShow(midnight, s1PvrDel, today.plusDays(1), LocalTime.of(11, 0), "Laser 4K", BigDecimal.valueOf(350));
-                createShow(midnight, s1PvrDel, today.plusDays(1), LocalTime.of(17, 30), "Laser 4K", BigDecimal.valueOf(380));
-
-                createShow(dune2, s1PvrDel, today.plusDays(1), LocalTime.of(14, 0), "Laser 4K", BigDecimal.valueOf(400));
-                createShow(dune2, s1PvrDel, today.plusDays(1), LocalTime.of(20, 45), "Laser 4K", BigDecimal.valueOf(450));
-
-                // MUMBAI shows: Oppenheimer, Neon Dreams (Midnight Protocol has NO shows in Mumbai)
-                createShow(oppenheimer, s1PvrMum, today.plusDays(1), LocalTime.of(15, 0), "IMAX 70mm", BigDecimal.valueOf(600));
-                createShow(oppenheimer, s1PvrMum, today.plusDays(1), LocalTime.of(20, 0), "IMAX 70mm", BigDecimal.valueOf(700));
-
-                createShow(neon, s1PvrMum, today.plusDays(1), LocalTime.of(18, 30), "2D", BigDecimal.valueOf(320));
-            }
+            // 4. Seed and Ensure Active Shows for Today and Future Dates (Chandigarh, Delhi, Mumbai)
+            seedUpcomingShowsIfMissing(
+                List.of(midnight, neon, inception, dune2, oppenheimer),
+                s1InoxChd, s2InoxChd, s1PvrDel, s1PvrMum, today
+            );
 
             // 5. Seed Demo Users for Login System
             User alex = getOrCreateUser("Alex Johnson", "alex@cinebook.com", "password123");
@@ -273,8 +250,67 @@ public class DataInitializer implements CommandLineRunner {
         return movieRepo.save(m);
     }
 
-    private void createShow(Movie movie, Screen screen, LocalDate date, LocalTime time, String format, BigDecimal price) {
-        showRepo.save(new Show(movie, screen, date, time, format, price));
+    private void seedUpcomingShowsIfMissing(List<Movie> nowShowingMovies, Screen s1InoxChd, Screen s2InoxChd,
+                                           Screen s1PvrDel, Screen s1PvrMum, LocalDate today) {
+        List<Show> existingShows = new java.util.ArrayList<>(showRepo.findAll());
+
+        Movie midnight = nowShowingMovies.stream().filter(m -> m.getTitle().contains("Midnight")).findFirst().orElse(null);
+        Movie neon = nowShowingMovies.stream().filter(m -> m.getTitle().contains("Neon")).findFirst().orElse(null);
+        Movie inception = nowShowingMovies.stream().filter(m -> m.getTitle().contains("Inception")).findFirst().orElse(null);
+        Movie dune2 = nowShowingMovies.stream().filter(m -> m.getTitle().contains("Dune")).findFirst().orElse(null);
+        Movie oppenheimer = nowShowingMovies.stream().filter(m -> m.getTitle().contains("Oppenheimer")).findFirst().orElse(null);
+
+        for (int dayOffset = 0; dayOffset <= 5; dayOffset++) {
+            LocalDate date = today.plusDays(dayOffset);
+
+            // Chandigarh (Inception, Midnight Protocol, Neon Dreams)
+            if (midnight != null && s1InoxChd != null) {
+                ensureShow(existingShows, midnight, s1InoxChd, date, LocalTime.of(10, 30), "2D Dolby Atmos", BigDecimal.valueOf(250));
+                ensureShow(existingShows, midnight, s1InoxChd, date, LocalTime.of(16, 30), "2D Dolby Atmos", BigDecimal.valueOf(250));
+                ensureShow(existingShows, midnight, s1InoxChd, date, LocalTime.of(20, 0), "2D Dolby Atmos", BigDecimal.valueOf(300));
+            }
+            if (neon != null && s1InoxChd != null) {
+                ensureShow(existingShows, neon, s1InoxChd, date, LocalTime.of(13, 15), "2D", BigDecimal.valueOf(220));
+                ensureShow(existingShows, neon, s1InoxChd, date, LocalTime.of(18, 0), "2D", BigDecimal.valueOf(250));
+                ensureShow(existingShows, neon, s1InoxChd, date, LocalTime.of(22, 30), "2D", BigDecimal.valueOf(250));
+            }
+            if (inception != null && s2InoxChd != null) {
+                ensureShow(existingShows, inception, s2InoxChd, date, LocalTime.of(14, 0), "IMAX", BigDecimal.valueOf(450));
+                ensureShow(existingShows, inception, s2InoxChd, date, LocalTime.of(19, 30), "IMAX", BigDecimal.valueOf(500));
+            }
+
+            // Delhi (Dune 2, Midnight Protocol)
+            if (midnight != null && s1PvrDel != null) {
+                ensureShow(existingShows, midnight, s1PvrDel, date, LocalTime.of(11, 0), "Laser 4K", BigDecimal.valueOf(350));
+                ensureShow(existingShows, midnight, s1PvrDel, date, LocalTime.of(17, 30), "Laser 4K", BigDecimal.valueOf(380));
+            }
+            if (dune2 != null && s1PvrDel != null) {
+                ensureShow(existingShows, dune2, s1PvrDel, date, LocalTime.of(14, 0), "Laser 4K", BigDecimal.valueOf(400));
+                ensureShow(existingShows, dune2, s1PvrDel, date, LocalTime.of(20, 45), "Laser 4K", BigDecimal.valueOf(450));
+            }
+
+            // Mumbai (Oppenheimer, Neon Dreams)
+            if (oppenheimer != null && s1PvrMum != null) {
+                ensureShow(existingShows, oppenheimer, s1PvrMum, date, LocalTime.of(15, 0), "IMAX 70mm", BigDecimal.valueOf(600));
+                ensureShow(existingShows, oppenheimer, s1PvrMum, date, LocalTime.of(20, 0), "IMAX 70mm", BigDecimal.valueOf(700));
+            }
+            if (neon != null && s1PvrMum != null) {
+                ensureShow(existingShows, neon, s1PvrMum, date, LocalTime.of(18, 30), "2D", BigDecimal.valueOf(320));
+            }
+        }
+    }
+
+    private void ensureShow(List<Show> existingShows, Movie movie, Screen screen, LocalDate date, LocalTime time, String format, BigDecimal price) {
+        boolean exists = existingShows.stream().anyMatch(s ->
+            s.getMovie().getId().equals(movie.getId()) &&
+            s.getScreen().getId().equals(screen.getId()) &&
+            s.getShowDate().equals(date) &&
+            s.getStartTime().equals(time)
+        );
+        if (!exists) {
+            Show saved = showRepo.save(new Show(movie, screen, date, time, format, price));
+            existingShows.add(saved);
+        }
     }
 
     private User getOrCreateUser(String name, String email, String rawPassword) {

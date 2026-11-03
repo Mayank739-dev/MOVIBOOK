@@ -11,8 +11,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "booking", indexes = {
-    @Index(name = "idx_booking_user_email", columnList = "user_email"),
-    @Index(name = "idx_booking_code", columnList = "booking_code")
+        @Index(name = "idx_booking_user_email", columnList = "user_email"),
+        @Index(name = "idx_booking_code", columnList = "booking_code")
 })
 public class Booking {
 
@@ -21,7 +21,7 @@ public class Booking {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "show_id", nullable = false)
+    @JoinColumn(name = "show_id", nullable = true)
     @JsonIgnore
     private Show show;
 
@@ -63,6 +63,9 @@ public class Booking {
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate = LocalDate.now();
 
+    @Column(name = "created_at")
+    private java.time.LocalDateTime createdAt = java.time.LocalDateTime.now();
+
     @Column(name = "cancelled_at")
     private String cancelledAt;
 
@@ -72,10 +75,11 @@ public class Booking {
     @Column(name = "refund_status")
     private String refundStatus;
 
-    public Booking() {}
+    public Booking() {
+    }
 
     public Booking(Show show, User user, String bookingCode, String userEmail, String userName, String movieTitle,
-                   String theaterName, String showTime, String seats, BigDecimal amount) {
+            String theaterName, String showTime, String seats, BigDecimal amount) {
         this.show = show;
         this.user = user;
         this.bookingCode = bookingCode;
@@ -231,6 +235,14 @@ public class Booking {
         this.refundStatus = refundStatus;
     }
 
+    public java.time.LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(java.time.LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
     // Convenience getters for frontend compatibility
     @JsonProperty("code")
     public String getCode() {
@@ -256,11 +268,16 @@ public class Booking {
     public String getPosterUrl() {
         if (movieTitle != null) {
             String lower = movieTitle.toLowerCase();
-            if (lower.contains("inception")) return "https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg";
-            if (lower.contains("dune")) return "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg";
-            if (lower.contains("oppenheimer")) return "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg";
-            if (lower.contains("midnight")) return "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&h=900&q=80";
-            if (lower.contains("neon")) return "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&h=900&q=80";
+            if (lower.contains("inception"))
+                return "https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg";
+            if (lower.contains("dune"))
+                return "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg";
+            if (lower.contains("oppenheimer"))
+                return "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg";
+            if (lower.contains("midnight"))
+                return "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&h=900&q=80";
+            if (lower.contains("neon"))
+                return "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&h=900&q=80";
         }
         return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80";
     }

@@ -1,108 +1,125 @@
-create extension if not exists pgcrypto;
+-- ==============================================================================
+-- CineBook Supabase PostgreSQL Schema
+-- Database: PostgreSQL 17 (Supabase)
+-- ==============================================================================
 
-create table if not exists app_user (
- id uuid primary key default gen_random_uuid(),
- name varchar(120) not null,
- email varchar(180) unique not null,
- password_hash varchar(255) not null,
- role varchar(20) not null default 'USER',
- created_at timestamptz not null default now()
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1. APP_USER (Registered CineBook Users)
+CREATE TABLE IF NOT EXISTS app_user (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(120) NOT NULL,
+    email VARCHAR(180) UNIQUE NOT NULL,
+    password VARCHAR(255),
+    password_hash VARCHAR(255),
+    role VARCHAR(50) NOT NULL DEFAULT 'ROLE_USER',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table if not exists movie (
- id uuid primary key default gen_random_uuid(),
- title varchar(180) not null,
- description text,
- poster_url text,
- backdrop_url text,
- duration_minutes int not null,
- language varchar(50) not null,
- genre varchar(120),
- rating numeric(3,1) default 0,
- release_date date,
- trailer_url text,
- status varchar(20) not null default 'NOW_SHOWING',
- created_at timestamptz not null default now()
+-- Idempotent column additions for existing app_user tables
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'ROLE_USER';
+
+-- 2. MOVIE (Now Showing & Coming Soon Catalog)
+CREATE TABLE IF NOT EXISTS movie (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    poster_url TEXT,
+    backdrop_url TEXT,
+    duration_minutes INT,
+    language VARCHAR(50),
+    genre VARCHAR(150),
+    rating NUMERIC(3,1) DEFAULT 0.0,
+    release_date DATE,
+    trailer_url TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'NOW_SHOWING',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table if not exists theater (
- id uuid primary key default gen_random_uuid(),
- name varchar(180) not null,
- city varchar(100) not null,
- address text,
- created_at timestamptz not null default now()
+-- Idempotent column additions for existing movie tables
+ALTER TABLE movie ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE movie ADD COLUMN IF NOT EXISTS backdrop_url TEXT;
+ALTER TABLE movie ADD COLUMN IF NOT EXISTS trailer_url TEXT;
+
+-- 3. THEATER (Multiplexes & Cinema Halls)
+CREATE TABLE IF NOT EXISTS theater (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    address TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table if not exists screen (
- id uuid primary key default gen_random_uuid(),
- theater_id uuid not null references theater(id) on delete cascade,
- name varchar(100) not null,
- rows_count int not null,
- seats_per_row int not null
+-- 4. SCREEN (Auditoriums within Theaters)
+CREATE TABLE IF NOT EXISTS screen (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    theater_id UUID NOT NULL REFERENCES theater(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    rows_count INT NOT NULL DEFAULT 6,
+    seats_per_row INT NOT NULL DEFAULT 10
 );
 
-create table if not exists seat (
- id uuid primary key default gen_random_uuid(),
- screen_id uuid not null references screen(id) on delete cascade,
- row_label varchar(5) not null,
- seat_number int not null,
- seat_type varchar(30) not null default 'GOLD',
- price numeric(10,2) not null,
- unique(screen_id,row_label,seat_number)
+-- 5. SHOW (Screenings per Screen, Date, and Time)
+CREATE TABLE IF NOT EXISTS "show" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    movie_id UUID NOT NULL REFERENCES movie(id) ON DELETE CASCADE,
+    screen_id UUID NOT NULL REFERENCES screen(id) ON DELETE CASCADE,
+    show_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    format VARCHAR(30) NOT NULL DEFAULT '2D',
+    base_price NUMERIC(10,2) NOT NULL DEFAULT 250.00,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    booking_open BOOLEAN NOT NULL DEFAULT true
 );
 
-create table if not exists show (
- id uuid primary key default gen_random_uuid(),
- movie_id uuid not null references movie(id) on delete cascade,
- screen_id uuid not null references screen(id) on delete cascade,
- show_date date not null,
- start_time time not null,
- format varchar(20) not null default '2D',
- base_price numeric(10,2) not null
+-- Idempotent column additions for existing show tables
+ALTER TABLE "show" ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';
+ALTER TABLE "show" ADD COLUMN IF NOT EXISTS booking_open BOOLEAN DEFAULT true;
+
+-- 6. BOOKING (Confirmed & Cancelled Digital Tickets)
+CREATE TABLE IF NOT EXISTS booking (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    show_id UUID REFERENCES "show"(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES app_user(id) ON DELETE SET NULL,
+    booking_code VARCHAR(40) UNIQUE NOT NULL,
+    user_email VARCHAR(180) NOT NULL,
+    user_name VARCHAR(120),
+    movie_title VARCHAR(255) NOT NULL,
+    theater_name VARCHAR(255) NOT NULL,
+    show_time VARCHAR(100) NOT NULL,
+    seats VARCHAR(255) NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    total_amount NUMERIC(10,2),
+    status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
+    booking_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    cancelled_at VARCHAR(100),
+    refund_amount NUMERIC(10,2),
+    refund_status VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create table if not exists show_seat (
- id uuid primary key default gen_random_uuid(),
- show_id uuid not null references show(id) on delete cascade,
- seat_id uuid not null references seat(id) on delete cascade,
- status varchar(20) not null default 'AVAILABLE',
- locked_until timestamptz,
- booking_id uuid,
- unique(show_id,seat_id)
-);
+-- Idempotent column additions for existing booking tables
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS user_email VARCHAR(180);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS user_name VARCHAR(120);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS movie_title VARCHAR(255);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS theater_name VARCHAR(255);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS show_time VARCHAR(100);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS seats VARCHAR(255);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10,2);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS booking_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS cancelled_at VARCHAR(100);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS refund_amount NUMERIC(10,2);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS refund_status VARCHAR(50);
+ALTER TABLE booking ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
-create table if not exists booking (
- id uuid primary key default gen_random_uuid(),
- user_id uuid references app_user(id),
- show_id uuid not null references show(id),
- booking_code varchar(30) unique not null,
- status varchar(20) not null default 'CONFIRMED',
- total_amount numeric(10,2) not null,
- created_at timestamptz not null default now()
-);
-
-alter table show_seat drop constraint if exists show_seat_booking_fk;
-alter table show_seat add constraint show_seat_booking_fk foreign key (booking_id) references booking(id);
-
-create table if not exists booking_seat (
- booking_id uuid references booking(id) on delete cascade,
- show_seat_id uuid references show_seat(id),
- primary key(booking_id,show_seat_id)
-);
-
-create index if not exists idx_movie_title on movie(title);
-create index if not exists idx_show_date on show(show_date);
-create index if not exists idx_show_seat_show on show_seat(show_id);
-
--- Seed demo data
-insert into movie(title,description,poster_url,backdrop_url,duration_minutes,language,genre,rating,release_date,status)
-select 'Midnight Protocol','A cyber-thriller about an elite team racing against a city-wide blackout.','https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80','https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1600&q=80',128,'English','Action • Thriller',8.7,current_date,'NOW_SHOWING'
-where not exists (select 1 from movie where title='Midnight Protocol');
-
-insert into movie(title,description,poster_url,backdrop_url,duration_minutes,language,genre,rating,release_date,status)
-select 'Neon Dreams','A romantic sci-fi journey through a future city where memories can be replayed.','https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=600&q=80','https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?auto=format&fit=crop&w=1600&q=80',116,'Hindi','Sci-Fi • Romance',8.2,current_date,'NOW_SHOWING'
-where not exists (select 1 from movie where title='Neon Dreams');
-
-insert into movie(title,description,poster_url,backdrop_url,duration_minutes,language,genre,rating,release_date,status)
-select 'The Last Kingdom','A warrior returns home to defend his people from an invading army.','https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?auto=format&fit=crop&w=600&q=80','https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?auto=format&fit=crop&w=1600&q=80',142,'English','Drama • Action',9.0,current_date,'COMING_SOON'
-where not exists (select 1 from movie where title='The Last Kingdom');
+-- 7. PERFORMANCE INDEXES
+CREATE INDEX IF NOT EXISTS idx_booking_user_email ON booking(user_email);
+CREATE INDEX IF NOT EXISTS idx_booking_code ON booking(booking_code);
+CREATE INDEX IF NOT EXISTS idx_show_movie_date ON "show"(movie_id, show_date);
+CREATE INDEX IF NOT EXISTS idx_movie_status ON movie(status, is_active);
+CREATE INDEX IF NOT EXISTS idx_theater_city ON theater(city);
+CREATE INDEX IF NOT EXISTS idx_app_user_email ON app_user(email);
