@@ -1,0 +1,17 @@
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/target/
+
+# Build output
+dist/
+frontend/dist/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Vite
+.vite/
